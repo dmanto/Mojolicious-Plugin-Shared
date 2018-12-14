@@ -1,0 +1,7 @@
+name = "Mojolicious-Plugin-Shared"
+# badges = ["travis"]
+authority="cpan:DMANTO"
+
+module_maker="ModuleBuildTiny"
+static_install = "auto"
+
