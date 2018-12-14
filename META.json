@@ -52,6 +52,17 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/dmanto/Mojolicious-Plugin-Shared/issues"
+      },
+      "homepage" : "https://github.com/dmanto/Mojolicious-Plugin-Shared",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/dmanto/Mojolicious-Plugin-Shared.git",
+         "web" : "https://github.com/dmanto/Mojolicious-Plugin-Shared"
+      }
+   },
    "version" : "0.01",
    "x_authority" : "cpan:DMANTO",
    "x_serialization_backend" : "JSON::PP version 2.97001",
