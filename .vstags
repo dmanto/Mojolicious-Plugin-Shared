@@ -5,3 +5,16 @@
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.8	//
 Mojolicious::Plugin::Shared	lib/Mojolicious/Plugin/Shared.pm	1;"	p
+Mojolicious::Plugin::Shared::SHARED_DIR	lib/Mojolicious/Plugin/Shared.pm	12;"	c
+Mojolicious::Plugin::Shared::_shared	lib/Mojolicious/Plugin/Shared.pm	34;"	s
+Mojolicious::Plugin::Shared::register	lib/Mojolicious/Plugin/Shared.pm	21;"	s
+SHARED_DIR	lib/Mojolicious/Plugin/Shared.pm	12;"	c
+_shared	lib/Mojolicious/Plugin/Shared.pm	34;"	s
+count	benchmarks/pfork3-file.pl	61;"	s
+count	benchmarks/pfork4-shared.pl	46;"	s
+get_hash	benchmarks/pfork3-file.pl	25;"	s
+inc_key	benchmarks/pfork3-file.pl	11;"	s
+inc_key	benchmarks/pfork4-shared.pl	16;"	s
+register	lib/Mojolicious/Plugin/Shared.pm	21;"	s
+squabble	benchmarks/pfork-ipc-shareable.pl	34;"	s
+squabble	benchmarks/pfork-sqlite.pl	48;"	s
