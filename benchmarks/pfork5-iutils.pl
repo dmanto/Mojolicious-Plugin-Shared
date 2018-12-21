@@ -17,7 +17,8 @@ sub inc_key {
 	my ($k) = @_;
 	$shrd->istash("PID-$k" => sub {++$_});
 }
-
+# clean old counters
+	$shrd->istash($_ => undef) for grep {/PID-\d+/} @{$shrd->ikeys};
 for (1 .. 50) {
 	my $child;
 	unless ($child = fork) {        # i'm the child
@@ -37,6 +38,7 @@ while (1) {
 		my $val = $shrd->istash("PID-$pid");
 		$sum += $val;
 	}
+	$shrd->gc;
 	my $dt = time - $original_time;
 	say sprintf '%.1f segs, promedio es %.3f',$dt, $sum/$dt;
 }
@@ -45,7 +47,7 @@ die "Child $$ shouldn't have reached this";
 
 sub count {
 	while (1) {
-        sleep 0.001;
+		sleep 0.0001;
 		inc_key($$);
 	}
 }

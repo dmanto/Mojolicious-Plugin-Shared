@@ -14,8 +14,8 @@ use constant {
 	LOCKS_DIR => 'locks',
 	PUBSUBS_DIR => 'pubsubs',
 	QUEUES_DIR => 'queues',
-    CATCH_VALID_TO => 5,
-    CATCH_SAFE_WINDOW => 5
+	CATCH_VALID_TO => 5,
+	CATCH_SAFE_WINDOW => 5
 };
 
 has base_dir => sub {
@@ -23,34 +23,52 @@ has base_dir => sub {
 };
 
 our $VERSION = '0.01';
-
+our $FTIME; # Fake time, for testing only
 my ($varsdir, $queuesdir, $pubsubsdir, $semaphore_file);
 my $valid_fname = qr/^[\w\.-]+$/;
 my %catched;
 
 
-sub istash {
-	my ($self, $key, $arg) = @_;
-	my ($cb, $val, $has_to_read, $has_to_write);
+sub get_path {
+	my ($self, $key) = @_;
 	die "Key $key not valid" unless $key =~ $valid_fname;
-	if (ref $arg eq 'CODE') {
-		$cb = $arg;
-		$has_to_read = $has_to_write = 1;
-	} elsif (@_ % 2) {
-		$val = $arg;
-		$has_to_write = 1;
-	} else {
-		$has_to_read = 1;
+	unless ($varsdir) { # inicializes $varsdir & $semaphore_file
+		$varsdir = path($self->base_dir, VARS_DIR );
+		$varsdir->make_path unless -d $varsdir;
+		$semaphore_file = $varsdir->sibling('semaphore.lock')->to_string;
 	}
-	unless (exists $catched{$key}) {
-		unless ($varsdir) { # inicializes $varsdir & $semaphore_file
-			$varsdir = path($self->base_dir, VARS_DIR );
-			$varsdir->make_path unless -d $varsdir;
-			$semaphore_file = $varsdir->child('semaphore.lock')->to_string;
-		}
+	return $varsdir->child($key)->to_string;
+}
 
 
-		my $file = $varsdir->child($key)->to_string;
+sub ikeys {
+	my $self = shift;
+	$self->get_path('dummy') unless $varsdir; # initializes $varsdir
+	return $varsdir->list->map('basename')->to_array;
+}
+
+
+sub gc {
+	my $self = shift;
+	$self->istash($_) for @{$self->ikeys};
+	my $ctime = sprintf '%10d', $FTIME // time; # current time, 10 digits number
+	for my $key (keys %catched) {
+		delete $catched{$key} unless $ctime <= $catched{$key}{tstamp} + CATCH_VALID_TO;
+	}
+	return $self;
+}
+
+
+sub istash {
+	my ($self, $key, $arg, %opts) = @_;
+	my ($cb, $val, $set_val, $last_def, $expires_by, $type);
+	my $ctime = sprintf '%10d', $FTIME // time; # current time, 10 digits number
+	$cb = $arg if ref $arg eq 'CODE';
+	my $has_to_write = @_ % 2; # odd nmbr of arguments --> write
+	$set_val = $arg unless $cb or !$has_to_write;
+
+	unless (exists $catched{$key} && $ctime <= $catched{$key}{tstamp} + CATCH_VALID_TO) {
+		my $file = $self->get_path($key);
 		open(my $sf, '>', $semaphore_file) or die "Couldn't open $semaphore_file for write: $!";
 		flock($sf, LOCK_EX) or die "Couldn't lock $semaphore_file: $!";
 		unless (-f $file){
@@ -68,24 +86,46 @@ sub istash {
 	open my $fh, '+<', $fname or die "Couldn't open $fname: $!";
 	binmode $fh;
 	flock($fh, $lock_flags) or die "Couldn't lock $fname: $!";
+	my $slurped_file = do {local $/; <$fh>};
+	$old_length = length $slurped_file;
+	($last_def, $expires_by, $type, $val) = unpack('a10a10a1a*', $slurped_file);
 
-	if ($has_to_read) {
-		$val = do {local $/; <$fh>};
-		$old_length = length $val;
-        $val = decode('UTF-8', $val);
+	if ($last_def && $expires_by && $expires_by gt $ctime) {
+		$val = decode('UTF-8', $val) if $type && $type eq 1;
+	} else {
+		undef $val;
 	}
-
-	$val = $cb->($val) if $cb;
-
 	if ($has_to_write) {
-		seek $fh, 0, 0 if $has_to_read;
-        my $eval = encode('UTF-8', $val);
-		print $fh ($eval // '');
-		my $new_length;
-			$new_length = length($eval // '');
+		$val = $cb ? $cb->($val) : $set_val;
+
+		my $to_print;
+		my $expires_set = sprintf '%10d', $opts{expire} // 9999999999;
+		undef $val if $ctime >= $expires_set;
+		if (defined $val) {
+			$catched{$key}{tstamp} = $last_def = $ctime;
+			my $enc_val;
+			if (utf8::is_utf8($val)) {$type=1;$enc_val = encode 'UTF-8', $val}
+			else {$type = 0; $enc_val = $val}
+			$to_print = pack 'a10a10a1a*', $last_def, $expires_set, $type, $enc_val;
+		} else {
+			$to_print = $last_def // '';
+		}
+
+		seek $fh, 0, 0;
+		print $fh ($to_print);
+		my $new_length = length($to_print);
 		truncate $fh, $new_length if !defined $old_length || $old_length > $new_length;
 	}
+
 	close($fh) or die "Couldn't close $fname: $!";
+	$last_def ||= 0;
+	$catched{$key}{tstamp} = $last_def;
+	unless (defined $val || $ctime <= $last_def + CATCH_VALID_TO + CATCH_SAFE_WINDOW) {
+		open(my $sf, '>', $semaphore_file) or die "Couldn't open $semaphore_file for write: $!";
+		flock($sf, LOCK_EX) or die "Couldn't lock $semaphore_file: $!";
+		unlink $fname if -f $fname;
+		close($sf) or die "Couldn't close $semaphore_file: $!";
+	}
 	return $val;
 }
 
